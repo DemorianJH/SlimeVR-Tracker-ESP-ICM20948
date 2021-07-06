@@ -44,6 +44,8 @@
     MPU9250Sensor sensor{};
 #elif IMU == IMU_MPU6500
     MPU6050Sensor sensor{};
+#elif IMU == IMU_ICM20948
+    ICM20948Sensor sensor{};
 #else
     #error Unsupported IMU
 #endif

@@ -146,4 +146,19 @@ class MPU9250Sensor : public MPUSensor {
         float deltat = 0;                  //loop time in seconds
 };
 
+class ICM20948Sensor : public Sensor {
+    public:
+        ICM20948Sensor() = default;
+        ~ICM20948Sensor() override = default;
+        void motionSetup(DeviceConfig * config) override final;
+        void motionLoop() override final;
+        void sendData() override final;
+        void startCalibration(int calibrationType) override final;
+        void save_bias(bool repeat);
+    private:
+        void i2c_scan();
+        bool auxilary {false}; // Does nothing useful yet
+        unsigned long lastData = 0;
+};
+
 #endif /* _SENSOR_H_ */

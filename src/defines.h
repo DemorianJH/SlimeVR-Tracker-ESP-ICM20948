@@ -27,6 +27,7 @@
 #define IMU_BNO080 3
 #define IMU_BNO085 4
 #define IMU_BNO055 5
+#define IMU_ICM20948 6
 
 #define BOARD_SLIMEVR 1
 #define BOARD_SLIMEVR_DEV 2
@@ -35,9 +36,9 @@
 #define BOARD_WROOM32 5
 
 // Set parameters of IMU and board used
-#define IMU IMU_BNO085
-#define BOARD BOARD_SLIMEVR
-#define SECOND_IMU true
+#define IMU IMU_ICM20948
+#define BOARD BOARD_CUSTOM
+#define SECOND_IMU false
 #define IMU_ROTATION PI / 2.0
 
 #if IMU == IMU_BNO085
@@ -68,6 +69,12 @@
   #define IMU_HAS_ACCELL true
   #define IMU_HAS_GYRO true
   #define IMU_HAS_MAG false
+#elif IMU == IMU_ICM20948
+  #define IMU_NAME "ICM20948"
+  #define IMU_HAS_ACCELL true
+  #define IMU_HAS_GYRO true
+  #define IMU_HAS_MAG true
+  #define BNO_HAS_ARVR_STABILIZATION true
 #else
     #error Select IMU in defines.h
 #endif
@@ -93,6 +100,16 @@
   #define BNO_ADDR_2 0x4B
 #elif BOARD == BOARD_CUSTOM
   // Define pins by the examples above
+  #define PIN_IMU_SDA 21
+  #define PIN_IMU_SCL 22
+  //#define PIN_IMU_INT 19
+  #define USE_6_AXIS false // uses 9 if false
+  #define LOAD_BIAS 1
+  #define SAVE_BIAS 1
+  //#define PIN_IMU_INT_2 20
+  //#define PIN_BATTERY_LEVEL 17
+  #define ICM_ADDR_1 0x69
+  //#define BNO_ADDR_2 0x68
 #elif BOARD == BOARD_WROOM32
   #define PIN_IMU_SDA 12
   #define PIN_IMU_SCL 13
@@ -122,7 +139,7 @@
 #define batterySampleRate 10000
 
 // Setup for the Magnetometer
-#define useFullCalibrationMatrix true
+#define useFullCalibrationMatrix false
 
 #define sensorIdTime 1000
 #define sensorIdInterval 100
