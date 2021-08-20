@@ -44,6 +44,12 @@
     MPU9250Sensor sensor{};
 #elif IMU == IMU_MPU6500 || IMU == IMU_MPU6050
     MPU6050Sensor sensor{};
+#elif IMU == IMU_ICM20948
+    ICM20948Sensor sensor{};
+    #if defined(SECOND_IMU) && SECOND_IMU
+        #define HAS_SECOND_IMU true
+        ICM20948Sensor sensor2{};
+    #endif
 #else
     #error Unsupported IMU
 #endif
@@ -106,7 +112,7 @@ void setup()
     // Wait for IMU to boot
     delay(500);
     
-    // Currently only second BNO08X is supported
+    // Currently only second BNO08X && ICM20948 is supported
 #if IMU == IMU_BNO080 || IMU == IMU_BNO085
     #ifdef HAS_SECOND_IMU
         uint8_t first = I2CSCAN::pickDevice(BNO_ADDR_1, BNO_ADDR_2, true);
@@ -120,6 +126,23 @@ void setup()
         }
     #else
     sensor.setupBNO080(0, I2CSCAN::pickDevice(BNO_ADDR_1, BNO_ADDR_2, true), PIN_IMU_INT);
+    #endif
+#endif
+
+#if IMU == IMU_ICM20948 
+    #ifdef HAS_SECOND_IMU
+        uint8_t first = I2CSCAN::pickDevice(ICM_ADDR_1, ICM_ADDR_2, true);
+        uint8_t second = I2CSCAN::pickDevice(ICM_ADDR_2, ICM_ADDR_1, false);
+
+        if(first != second) {
+            sensor.setupICM20948(false, first);
+            sensor2.setupICM20948(true, second);
+            secondImuActive = true;
+        } else {
+            sensor.setupICM20948(false, first);
+        }
+    #else
+    sensor.setupICM20948(false, I2CSCAN::pickDevice(ICM_ADDR_1, ICM_ADDR_2, true));
     #endif
 #endif
 
@@ -152,9 +175,11 @@ void loop()
         if(isConnected()) {
 #endif
     sensor.motionLoop();
-#ifdef HAS_SECOND_IMU
+    
+#if (defined(HAS_SECOND_IMU) && secondImuActive) 
     sensor2.motionLoop();
 #endif
+
 #ifndef UPDATE_IMU_UNCONNECTED
         }
 #endif

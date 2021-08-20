@@ -27,11 +27,16 @@
 #include <BNO080.h>
 #include <MPU9250.h>
 #include <MPU6050.h>
+#include <Arduino-ICM20948.h>
 #include <quat.h>
 #include <vector3.h>
 #include "configuration.h"
 #include <Adafruit_BNO055.h>
 #include "defines.h"
+#ifdef ESP32
+    #include <Preferences.h> // ICM bias saving. Not available for ESP8266
+    #include <arduino-timer.h> 
+#endif
 
 #define DATA_TYPE_NORMAL 1
 #define DATA_TYPE_CORRECTION 2
@@ -155,6 +160,35 @@ class MPU9250Sensor : public MPUSensor {
         // Loop timing globals
         unsigned long now = 0, last = 0;   //micros() timers
         float deltat = 0;                  //loop time in seconds
+};
+
+class ICM20948Sensor : public Sensor {
+    public:
+        ICM20948Sensor() = default;
+        ~ICM20948Sensor() override = default;
+        void motionSetup() override final;
+        void motionLoop() override final;
+        void sendData() override final;
+        void startCalibration(int calibrationType) override final;
+        void save_bias(bool repeat);
+        void setupICM20948(bool auxiliary = false, uint8_t addr = 0x69);
+
+    private:
+        void i2c_scan();
+        bool auxiliary {false};
+        unsigned long lastData = 0;
+        uint8_t addr = 0x69;
+        int bias_save_counter = 0;
+        uint8_t ICM_address;
+        bool ICM_found = false;
+        bool ICM_init = false;
+        bool newData = false;
+        ArduinoICM20948 icm20948;
+        ArduinoICM20948Settings icmSettings;
+        #ifdef ESP32
+            Preferences prefs;
+            Timer<> timer = timer_create_default();
+        #endif
 };
 
 #endif /* _SENSOR_H_ */
