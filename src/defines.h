@@ -20,25 +20,12 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
     THE SOFTWARE.
 */
-
-
-#define IMU_MPU9250 1
-#define IMU_MPU6500 2
-#define IMU_BNO080 3
-#define IMU_BNO085 4
-#define IMU_BNO055 5
-#define IMU_ICM20948 6
-
-#define BOARD_SLIMEVR 1
-#define BOARD_SLIMEVR_DEV 2
-#define BOARD_NODEMCU 3
-#define BOARD_CUSTOM 4 // Update pinout below if you're using custom board
-#define BOARD_WROOM32 5
+#include "consts.h"
 
 // Set parameters of IMU and board used
 #define IMU IMU_ICM20948
 #define BOARD BOARD_CUSTOM
-#define SECOND_IMU false
+#define SECOND_IMU true
 #define IMU_ROTATION PI / 2.0
 
 #if IMU == IMU_BNO085
@@ -47,34 +34,51 @@
   #define IMU_HAS_GYRO true
   #define IMU_HAS_MAG true
   #define BNO_HAS_ARVR_STABILIZATION true
+  #define I2C_SPEED 400000
 #elif IMU == IMU_BNO080
   #define IMU_NAME "BNO080"
   #define IMU_HAS_ACCELL true
   #define IMU_HAS_GYRO true
   #define IMU_HAS_MAG true
   #define BNO_HAS_ARVR_STABILIZATION false
+  #define I2C_SPEED 400000
 #elif IMU == IMU_BNO055
   #define IMU_NAME "BNO055"
   #define IMU_HAS_ACCELL true
   #define IMU_HAS_GYRO true
   #define IMU_HAS_MAG true
   #define BNO_HAS_ARVR_STABILIZATION false
+  #define I2C_SPEED 400000
 #elif IMU == IMU_MPU9250
   #define IMU_NAME "MPU9250"
   #define IMU_HAS_ACCELL true
   #define IMU_HAS_GYRO true
   #define IMU_HAS_MAG true
+  #define I2C_SPEED 100000
+#elif IMU == IMU_MPU6050
+  #define IMU_NAME "MPU6050"
+  #define IMU_HAS_ACCELL true
+  #define IMU_HAS_GYRO true
+  #define IMU_HAS_MAG false
+  #define I2C_SPEED 100000
 #elif IMU == IMU_MPU6500
   #define IMU_NAME "MPU6500"
   #define IMU_HAS_ACCELL true
   #define IMU_HAS_GYRO true
   #define IMU_HAS_MAG false
+  #define I2C_SPEED 100000
 #elif IMU == IMU_ICM20948
   #define IMU_NAME "ICM20948"
   #define IMU_HAS_ACCELL true
   #define IMU_HAS_GYRO true
   #define IMU_HAS_MAG true
   #define BNO_HAS_ARVR_STABILIZATION true
+  #define USE_6_AXIS false // uses 9 if false
+  #define LOAD_BIAS 1 // Loads the bias values from NVS on start (ESP32 Only)
+  #define SAVE_BIAS 1 // Periodically saves bias calibration data to NVS (ESP32 Only)
+  #define ICM_ADDR_1 0x69
+  #define ICM_ADDR_2 0x68
+  #define I2C_SPEED 400000
 #else
     #error Select IMU in defines.h
 #endif
@@ -93,23 +97,16 @@
     #define BNO_ADDR_2 0x4B
   #endif
 #elif BOARD == BOARD_NODEMCU
-  #define PIN_IMU_SDA D3
-  #define PIN_IMU_SCL D2
-  #define PIN_IMU_INT D1
+  #define PIN_IMU_SDA D2
+  #define PIN_IMU_SCL D1
+  #define PIN_IMU_INT D5
+  #define PIN_IMU_INT_2 D6
   #define BNO_ADDR_1 0x4A
   #define BNO_ADDR_2 0x4B
 #elif BOARD == BOARD_CUSTOM
   // Define pins by the examples above
   #define PIN_IMU_SDA 21
   #define PIN_IMU_SCL 22
-  //#define PIN_IMU_INT 19
-  #define USE_6_AXIS false // uses 9 if false
-  #define LOAD_BIAS 1
-  #define SAVE_BIAS 1
-  //#define PIN_IMU_INT_2 20
-  //#define PIN_BATTERY_LEVEL 17
-  #define ICM_ADDR_1 0x69
-  //#define BNO_ADDR_2 0x68
 #elif BOARD == BOARD_WROOM32
   #define PIN_IMU_SDA 12
   #define PIN_IMU_SCL 13
@@ -118,10 +115,6 @@
   #define PIN_BATTERY_LEVEL 36
   #define BNO_ADDR_1 0x4A
   #define BNO_ADDR_2 0x4B
-#endif
-
-#ifndef LED_BUILTIN
-#define LED_BUILTIN 2
 #endif
 
 #define LOADING_LED LED_BUILTIN
@@ -139,19 +132,12 @@
 #define batterySampleRate 10000
 
 // Setup for the Magnetometer
-#define useFullCalibrationMatrix false
+#define useFullCalibrationMatrix true
 
 #define sensorIdTime 1000
 #define sensorIdInterval 100
 
 #define batteryADCMultiplier 1.0 / 1024.0 * 5.0
 
-#define FIRMWARE_BUILD_NUMBER 2
-#define FIRMWARE_VERSION "0.0.2"
-#ifdef ESP8266
-  #define HARDWARE_MCU 1
-#elif defined(ESP32)
-  #define HARDWARE_MCU 2
-#else
-  #define HARDWARE_MCU 0
-#endif
+#define FIRMWARE_BUILD_NUMBER 4
+#define FIRMWARE_VERSION "0.0.4"

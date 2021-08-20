@@ -1,7 +1,7 @@
 /*
 * ________________________________________________________________________________________________________
-* Copyright © 2014-2015 InvenSense Inc. Portions Copyright © 2014-2015 Movea. All rights reserved.
-* This software, related documentation and any modifications thereto (collectively “Software”) is subject
+* Copyright ï¿½ 2014-2015 InvenSense Inc. Portions Copyright ï¿½ 2014-2015 Movea. All rights reserved.
+* This software, related documentation and any modifications thereto (collectively ï¿½Softwareï¿½) is subject
 * to InvenSense and its licensors' intellectual property rights under U.S. and international copyright and
 * other intellectual property rights laws.
 * InvenSense and its licensors retain all intellectual property and proprietary rights in and to the Software
@@ -247,6 +247,7 @@ int inv_icm20948_initialize_lower_driver(struct inv_icm20948 * s, enum SMARTSENS
 		return result;
 	else
 		s->base_state.firmware_loaded = 1;
+
 	result |= inv_icm20948_set_dmp_address(s);
 	// Turn off all sensors on DMP by default.
 	//result |= dmp_set_data_output_control1(0);   // FIXME in DMP, these should be off by default.

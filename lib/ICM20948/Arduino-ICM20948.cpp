@@ -103,7 +103,7 @@ int spi_master_write_register(uint8_t reg, const uint8_t* wbuffer, uint32_t wlen
 
 int i2c_master_write_register(uint8_t address, uint8_t reg, uint32_t len, const uint8_t *data)
 {
-  if (address != 0x69)
+  if (!(address == 0x69 || address == 0x68))
   {
 
     Serial.print("Odd address:");
@@ -124,7 +124,7 @@ int i2c_master_write_register(uint8_t address, uint8_t reg, uint32_t len, const 
 
 int i2c_master_read_register(uint8_t address, uint8_t reg, uint32_t len, uint8_t *buff)
 {
-  if (address != 0x69)
+  if (!(address == 0x69 || address == 0x68))
   {
 
     Serial.print("Odd read address:");
@@ -141,7 +141,7 @@ int i2c_master_read_register(uint8_t address, uint8_t reg, uint32_t len, uint8_t
   Wire.write(reg);
   Wire.endTransmission(false); // Send repeated start
 
-  uint32_t offset = 0;
+  //uint32_t offset = 0;
   uint32_t num_received = Wire.requestFrom(address, len);
   //Serial.print("received = ");
   //Serial.println(num_received);
@@ -311,11 +311,9 @@ int icm20948_sensor_setup(void)
   int rc;
   uint8_t i, whoami = 0xff;
 
-  inv_icm20948_soft_reset(&icm_device);
-
+  rc = inv_icm20948_soft_reset(&icm_device);
   // Get whoami number
   rc = inv_icm20948_get_whoami(&icm_device, &whoami);
-
   // Check if WHOAMI value corresponds to any value from EXPECTED_WHOAMI array
   for (i = 0; i < sizeof(EXPECTED_WHOAMI) / sizeof(EXPECTED_WHOAMI[0]); ++i) {
 
@@ -334,7 +332,7 @@ int icm20948_sensor_setup(void)
   inv_icm20948_init_matrix(&icm_device);
 
   // set default power mode
-  rc = inv_icm20948_initialize(&icm_device, dmp3_image, sizeof(dmp3_image));
+  rc = inv_icm20948_initialize(&icm_device, dmp3_image, sizeof(dmp3_image)); Serial.println(rc);
   if (rc != 0) {
     Serial.println("Icm20948 Initialization failed.");
     return rc;
@@ -344,7 +342,7 @@ int icm20948_sensor_setup(void)
 
   // Initialize auxiliary sensors
   inv_icm20948_register_aux_compass( &icm_device, INV_ICM20948_COMPASS_ID_AK09916, AK0991x_DEFAULT_I2C_ADDR);
-  rc = inv_icm20948_initialize_auxiliary(&icm_device);
+  rc = inv_icm20948_initialize_auxiliary(&icm_device); 
   if (rc == -1) {
     Serial.println("Compass not detected...");
   }
@@ -603,7 +601,7 @@ int ArduinoICM20948::init(ArduinoICM20948Settings settings)
   icm20948_serif.max_write = 1024 * 16; // maximum number of bytes allowed per serial write
   icm20948_serif.is_spi = interface_is_SPI();
 
-  // Reset icm20948 driver states
+  // Reset icm20948 driver states 
   inv_icm20948_reset_states(&icm_device, &icm20948_serif);
   inv_icm20948_register_aux_compass(&icm_device, INV_ICM20948_COMPASS_ID_AK09916, AK0991x_DEFAULT_I2C_ADDR);
 
@@ -754,8 +752,8 @@ void ArduinoICM20948::readLinearAccelData(float* x, float* y, float* z)
 
 void ArduinoICM20948::readGravData(float* x, float* y, float* z)
 {
-    *y = grav[0];
-    *x = grav[1];
+    *x = grav[0];
+    *y = grav[1];
     *z = grav[2];
     grav_data_ready = false;
 }

@@ -130,7 +130,6 @@ int inv_icm20948_write_mems_reg(struct inv_icm20948 * s, uint16_t reg, unsigned 
 
 	if((power_state & CHIP_AWAKE) == 0)   // Wake up chip since it is asleep
 		result = inv_icm20948_set_chip_power_state(s, CHIP_AWAKE, 1);
-
 	if(check_reg_access_lp_disable(s, reg))    // Check if register needs LP_EN to be disabled   
 		result |= inv_icm20948_set_chip_power_state(s, CHIP_LP_ENABLE, 0);  //Disable LP_EN
 

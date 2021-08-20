@@ -44,7 +44,7 @@
 #define PACKET_ACCEL 4
 #define PACKET_MAG 5
 #define PACKET_RAW_CALIBRATION_DATA 6
-#define PACKET_GYRO_CALIBRATION_DATA 7
+#define PACKET_CALIBRATION_FINISHED 7
 #define PACKET_CONFIG 8
 #define PACKET_RAW_MAGENTOMETER 9
 #define PACKET_PING_PONG 10
@@ -54,6 +54,8 @@
 #define PACKET_RESET_REASON 14
 #define PACKET_SENSOR_INFO 15
 #define PACKET_ROTATION_2 16
+#define PACKET_ROTATION_DATA 17
+#define PACKET_MAGENTOMETER_ACCURACY 18
 
 #define PACKET_RECIEVE_HEARTBEAT 1
 #define PACKET_RECIEVE_VIBRATE 2
@@ -64,19 +66,24 @@
 #define COMMAND_SEND_CONFIG 2
 #define COMMAND_BLINK 3
 
-typedef void (* configRecievedCallback)(DeviceConfig const newConfig);
+typedef void (* configRecievedCallback)(const DeviceConfig & newConfig);
 typedef void (* commandRecievedCallback)(int command, void * const commandData, int commandDataLength);
 
 void connectClient();
 void clientUpdate(Sensor * const sensor, Sensor * const sensor2);
 void sendQuat(float * const quaternion, int type);
 void sendQuat(Quat * const quaternion, int type);
+void sendRotationData(Quat * const quaternion, uint8_t dataType, uint8_t accuracyInfo, uint8_t sensorId, int type);
+void sendMagnetometerAccuracy(float accuracyInfo, uint8_t sensorId, int type);
 void sendVector(float * const result, int type);
 void sendConfig(DeviceConfig * const config, int type);
 void sendFloat(float const value, int type);
 void sendByte(unsigned char const value, int type);
+void sendByte(uint8_t const value, uint8_t sensorId, int type);
 void sendSensorInfo(unsigned char const sensorId, unsigned char const sensorState, int type);
-void sendRawCalibrationData(int * const data, int type);
+void sendRawCalibrationData(int * const data, int calibrationType, unsigned char const sensorId, int type);
+void sendRawCalibrationData(float * const data, int calibrationType, unsigned char const sensorId, int type);
+void sendCalibrationFinished(int calibrationType, unsigned char const sensorId, int type);
 void setConfigRecievedCallback(configRecievedCallback);
 void setCommandRecievedCallback(commandRecievedCallback);
 void sendSerial(uint8_t *const data, int length, int type);

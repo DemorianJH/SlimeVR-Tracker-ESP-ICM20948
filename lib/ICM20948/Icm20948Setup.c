@@ -159,15 +159,16 @@ int inv_icm20948_initialize(struct inv_icm20948 * s, const uint8_t *dmp3_image, 
 	if(s->serif.is_spi) {
 		/* Hardware initialization */
 		// No image to be loaded from flash, no pointer to pass.
-		if (inv_icm20948_initialize_lower_driver(s, SERIAL_INTERFACE_SPI, dmp3_image, dmp3_image_size)) {
+		if (inv_icm20948_initialize_lower_driver(s, SERIAL_INTERFACE_SPI, dmp3_image, dmp3_image_size)) { 
 			return -1;
 		}
 	}
 	else {
 		/* Hardware initialization */
 		// No image to be loaded from flash, no pointer to pass.
-		if (inv_icm20948_initialize_lower_driver(s, SERIAL_INTERFACE_I2C, dmp3_image, dmp3_image_size)) {
-			return -1;
+		int rc = inv_icm20948_initialize_lower_driver(s, SERIAL_INTERFACE_I2C, dmp3_image, dmp3_image_size);
+		if (rc) {
+			return rc;
 		}
 	}
 	return 0;

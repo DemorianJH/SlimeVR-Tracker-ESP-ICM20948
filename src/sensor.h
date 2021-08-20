@@ -26,17 +26,26 @@
 
 #include <BNO080.h>
 #include <MPU9250.h>
+#include <MPU6050.h>
+#include <Arduino-ICM20948.h>
 #include <quat.h>
 #include <vector3.h>
 #include "configuration.h"
 #include <Adafruit_BNO055.h>
 #include "defines.h"
+#ifdef ESP32
+    #include <Preferences.h> // ICM bias saving. Not available for ESP8266
+    #include <arduino-timer.h> 
+#endif
+
+#define DATA_TYPE_NORMAL 1
+#define DATA_TYPE_CORRECTION 2
 
 class Sensor {
     public:
         Sensor() = default;
         virtual ~Sensor() = default;
-        virtual void motionSetup(DeviceConfig * config) = 0;
+        virtual void motionSetup() = 0;
         virtual void motionLoop() = 0;
         virtual void sendData() = 0;
         virtual void startCalibration(int calibrationType) = 0;
@@ -47,13 +56,14 @@ class Sensor {
         Quat quaternion {};
         Quat sensorOffset {Quat(Vector3(0, 0, 1), IMU_ROTATION)};
         bool working {false};
+        uint8_t sensorId {0};
 };
 
 class EmptySensor : public Sensor {
     public:
         EmptySensor() = default;
         ~EmptySensor() override = default;
-        void motionSetup(DeviceConfig * config) override final;
+        void motionSetup() override final;
         void motionLoop() override final;
         void sendData() override final;
         void startCalibration(int calibrationType) override final;
@@ -63,28 +73,34 @@ class BNO080Sensor : public Sensor {
     public:
         BNO080Sensor() = default;
         ~BNO080Sensor() override = default;
-        void motionSetup(DeviceConfig * config) override final;
+        void motionSetup() override final;
         void motionLoop() override final;
         void sendData() override final;
         void startCalibration(int calibrationType) override final;
-        void setupBNO080(bool auxilary = false, uint8_t addr = 0x4B, uint8_t intPin = 255);
+        void setupBNO080(uint8_t sensorId = 0, uint8_t addr = 0x4B, uint8_t intPin = 255);
     private:
         BNO080 imu {};
         bool newData {false};
+        bool newMagData {false};
         uint8_t tap;
         unsigned long lastData = 0;
         uint8_t lastReset = 0;
         uint8_t addr = 0x4B;
         uint8_t intPin = 255;
-        bool auxilary {false};
         bool setUp {false};
+        Quat magQuaternion {};
+        float magneticAccuracyEstimate {999};
+        uint8_t calibrationAccuracy {0};
+        uint8_t magCalibrationAccuracy {0};
+        bool useMagentometerAllTheTime {false};
+        bool useMagentometerCorrection {false};
 };
 
 class BNO055Sensor : public Sensor {
     public:
         BNO055Sensor() = default;
         ~BNO055Sensor() override = default;
-        void motionSetup(DeviceConfig * config) override final;
+        void motionSetup() override final;
         void motionLoop() override final;
         void sendData() override final;
         void startCalibration(int calibrationType) override final;
@@ -98,7 +114,6 @@ class MPUSensor : public Sensor {
         MPUSensor() = default;
         ~MPUSensor() override = default;
     protected:
-        MPU9250 imu {};
         float q[4] {1.0, 0.0, 0.0, 0.0};
 };
 
@@ -106,11 +121,12 @@ class MPU6050Sensor : public MPUSensor {
     public:
         MPU6050Sensor() = default;
         ~MPU6050Sensor() override  = default;
-        void motionSetup(DeviceConfig * config) override final;
+        void motionSetup() override final;
         void motionLoop() override final;
         void sendData() override final;
         void startCalibration(int calibrationType) override final;
     private:
+        MPU6050 imu {};
         Quaternion rawQuat {};
         // MPU dmp control/status vars
         bool dmpReady{false};  // set true if DMP init was successful
@@ -125,7 +141,7 @@ class MPU9250Sensor : public MPUSensor {
     public:
         MPU9250Sensor() = default;
         ~MPU9250Sensor() override  = default;
-        void motionSetup(DeviceConfig * config) override final;
+        void motionSetup() override final;
         void motionLoop() override final;
         void sendData() override final;
         void startCalibration(int calibrationType) override final;
@@ -150,15 +166,29 @@ class ICM20948Sensor : public Sensor {
     public:
         ICM20948Sensor() = default;
         ~ICM20948Sensor() override = default;
-        void motionSetup(DeviceConfig * config) override final;
+        void motionSetup() override final;
         void motionLoop() override final;
         void sendData() override final;
         void startCalibration(int calibrationType) override final;
         void save_bias(bool repeat);
+        void setupICM20948(bool auxiliary = false, uint8_t addr = 0x69);
+
     private:
         void i2c_scan();
-        bool auxilary {false}; // Does nothing useful yet
+        bool auxiliary {false};
         unsigned long lastData = 0;
+        uint8_t addr = 0x69;
+        int bias_save_counter = 0;
+        uint8_t ICM_address;
+        bool ICM_found = false;
+        bool ICM_init = false;
+        bool newData = false;
+        ArduinoICM20948 icm20948;
+        ArduinoICM20948Settings icmSettings;
+        #ifdef ESP32
+            Preferences prefs;
+            Timer<> timer = timer_create_default();
+        #endif
 };
 
 #endif /* _SENSOR_H_ */

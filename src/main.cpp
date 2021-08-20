@@ -42,17 +42,20 @@
     BNO055Sensor sensor{};
 #elif IMU == IMU_MPU9250
     MPU9250Sensor sensor{};
-#elif IMU == IMU_MPU6500
+#elif IMU == IMU_MPU6500 || IMU == IMU_MPU6050
     MPU6050Sensor sensor{};
 #elif IMU == IMU_ICM20948
     ICM20948Sensor sensor{};
+    #if defined(SECOND_IMU) && SECOND_IMU
+        #define HAS_SECOND_IMU true
+        ICM20948Sensor sensor2{};
+    #endif
 #else
     #error Unsupported IMU
 #endif
 #ifndef HAS_SECOND_IMU
     EmptySensor sensor2{};
 #endif
-DeviceConfig config{};
 
 bool isCalibrating = false;
 bool blinking = false;
@@ -60,12 +63,6 @@ unsigned long blinkStart = 0;
 unsigned long now_ms, last_ms = 0; //millis() timers
 unsigned long last_battery_sample = 0;
 bool secondImuActive = false;
-
-void setConfig(DeviceConfig newConfig)
-{
-    config = newConfig;
-    saveConfig(&config);
-}
 
 void commandRecieved(int command, void * const commandData, int commandDataLength)
 {
@@ -75,7 +72,7 @@ void commandRecieved(int command, void * const commandData, int commandDataLengt
         isCalibrating = true;
         break;
     case COMMAND_SEND_CONFIG:
-        sendConfig(&config, PACKET_CONFIG);
+        sendConfig(getConfigPtr(), PACKET_CONFIG);
         break;
     case COMMAND_BLINK:
         blinking = true;
@@ -85,6 +82,7 @@ void commandRecieved(int command, void * const commandData, int commandDataLengt
 }
 
 void processBlinking();
+int I2C_ClearBus();
 
 void setup()
 {
@@ -97,48 +95,64 @@ void setup()
     
     Serial.begin(serialBaudRate);
     setUpSerialCommands();
-
+#if IMU == IMU_MPU6500 || IMU == IMU_MPU6050 || IMU == IMU_MPU9250
+    I2CSCAN::clearBus(PIN_IMU_SDA, PIN_IMU_SCL); // Make sure the bus isn't suck when reseting ESP without powering it down
+    // Do it only for MPU, cause reaction of BNO to this is not investigated yet
+#endif
     // join I2C bus
     Wire.begin(PIN_IMU_SDA, PIN_IMU_SCL);
 #ifdef ESP8266
     Wire.setClockStretchLimit(150000L); // Default streatch limit 150mS
 #endif
-    Wire.setClock(100000);
+    Wire.setClock(I2C_SPEED);
 
-    if (hasConfigStored())
-    {
-        loadConfig(&config);
-    }
-    
+    getConfigPtr();
     setConfigRecievedCallback(setConfig);
     setCommandRecievedCallback(commandRecieved);
     // Wait for IMU to boot
     delay(500);
     
-    // Currently only second BNO08X is supported
+    // Currently only second BNO08X && ICM20948 is supported
 #if IMU == IMU_BNO080 || IMU == IMU_BNO085
     #ifdef HAS_SECOND_IMU
         uint8_t first = I2CSCAN::pickDevice(BNO_ADDR_1, BNO_ADDR_2, true);
         uint8_t second = I2CSCAN::pickDevice(BNO_ADDR_2, BNO_ADDR_1, false);
         if(first != second) {
-            sensor.setupBNO080(false, first, PIN_IMU_INT);
-            sensor2.setupBNO080(true, second, PIN_IMU_INT_2);
+            sensor.setupBNO080(0, first, PIN_IMU_INT);
+            sensor2.setupBNO080(1, second, PIN_IMU_INT_2);
             secondImuActive = true;
         } else {
-            sensor.setupBNO080(false, first, PIN_IMU_INT);
+            sensor.setupBNO080(0, first, PIN_IMU_INT);
         }
     #else
-    sensor.setupBNO080(false, I2CSCAN::pickDevice(BNO_ADDR_1, BNO_ADDR_2, true), PIN_IMU_INT);
+    sensor.setupBNO080(0, I2CSCAN::pickDevice(BNO_ADDR_1, BNO_ADDR_2, true), PIN_IMU_INT);
     #endif
 #endif
 
-    sensor.motionSetup(&config);
-#ifdef HAS_SECOND_IMU
-    if(secondImuActive)
-        sensor2.motionSetup(&config);
+#if IMU == IMU_ICM20948 
+    #ifdef HAS_SECOND_IMU
+        uint8_t first = I2CSCAN::pickDevice(ICM_ADDR_1, ICM_ADDR_2, true);
+        uint8_t second = I2CSCAN::pickDevice(ICM_ADDR_2, ICM_ADDR_1, false);
+
+        if(first != second) {
+            sensor.setupICM20948(false, first);
+            sensor2.setupICM20948(true, second);
+            secondImuActive = true;
+        } else {
+            sensor.setupICM20948(false, first);
+        }
+    #else
+    sensor.setupICM20948(false, I2CSCAN::pickDevice(ICM_ADDR_1, ICM_ADDR_2, true));
+    #endif
 #endif
 
-    setUpWiFi(&config);
+    sensor.motionSetup();
+#ifdef HAS_SECOND_IMU
+    if(secondImuActive)
+        sensor2.motionSetup();
+#endif
+
+    setUpWiFi();
     otaSetup(otaPassword);
     digitalWrite(LOADING_LED, HIGH);
 }
@@ -161,9 +175,11 @@ void loop()
         if(isConnected()) {
 #endif
     sensor.motionLoop();
-#ifdef HAS_SECOND_IMU
+    
+#if (defined(HAS_SECOND_IMU) && secondImuActive) 
     sensor2.motionLoop();
 #endif
+
 #ifndef UPDATE_IMU_UNCONNECTED
         }
 #endif
