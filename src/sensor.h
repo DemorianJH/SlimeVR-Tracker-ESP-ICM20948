@@ -28,6 +28,7 @@
 #include <MPU9250.h>
 #include <MPU6050.h>
 #include <Arduino-ICM20948.h>
+#include "../lib/ICM20948/TapDetector/TapDetector.h"
 #include <quat.h>
 #include <vector3.h>
 #include "configuration.h"
@@ -183,12 +184,14 @@ class ICM20948Sensor : public Sensor {
         bool ICM_found = false;
         bool ICM_init = false;
         bool newData = false;
+        bool newTap;
         ArduinoICM20948 icm20948;
         ArduinoICM20948Settings icmSettings;
         #ifdef ESP32
             Preferences prefs;
             Timer<> timer = timer_create_default();
         #endif
+        TapDetector tapDetector;
 };
 
 #endif /* _SENSOR_H_ */

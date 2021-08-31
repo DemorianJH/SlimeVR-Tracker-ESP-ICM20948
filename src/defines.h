@@ -25,8 +25,8 @@
 // Set parameters of IMU and board used
 #define IMU IMU_ICM20948
 #define BOARD BOARD_CUSTOM
-#define SECOND_IMU true
-#define IMU_ROTATION PI / 2.0
+#define IMU_ROTATION PI / 2
+#define SECOND_IMU_ROTATION IMU_ROTATION
 
 #if IMU == IMU_BNO085
   #define IMU_NAME "BNO085"
@@ -72,13 +72,22 @@
   #define IMU_HAS_ACCELL true
   #define IMU_HAS_GYRO true
   #define IMU_HAS_MAG true
-  #define BNO_HAS_ARVR_STABILIZATION true
-  #define USE_6_AXIS false // uses 9 if false
+  #define USE_6_AXIS true // uses 9 (with mag) if false
   #define LOAD_BIAS 1 // Loads the bias values from NVS on start (ESP32 Only)
   #define SAVE_BIAS 1 // Periodically saves bias calibration data to NVS (ESP32 Only)
+  #define ENABLE_TAP false // monitor accel for (tripple) tap events and send them. Uses more cpu, disable if problems. Server does nothing with value so disabled atm
   #define ICM_ADDR_1 0x69
   #define ICM_ADDR_2 0x68
   #define I2C_SPEED 400000
+  #define SECOND_IMU true
+  #ifdef IMU_ROTATION // to not interfere with master repo
+    #undef IMU_ROTATION
+  #endif
+  #ifdef SECOND_IMU_ROTATION
+    #undef SECOND_IMU_ROTATION
+  #endif
+  #define IMU_ROTATION PI
+  #define SECOND_IMU_ROTATION IMU_ROTATION  
 #else
     #error Select IMU in defines.h
 #endif
@@ -108,9 +117,9 @@
   #define PIN_IMU_SDA 21
   #define PIN_IMU_SCL 22
 #elif BOARD == BOARD_WROOM32
-  #define PIN_IMU_SDA 12
-  #define PIN_IMU_SCL 13
-  #define PIN_IMU_INT 26
+  #define PIN_IMU_SDA 21
+  #define PIN_IMU_SCL 22
+  #define PIN_IMU_INT 23
   #define PIN_IMU_INT_2 25
   #define PIN_BATTERY_LEVEL 36
   #define BNO_ADDR_1 0x4A

@@ -503,7 +503,7 @@ void updateSensorState(Sensor * const sensor, Sensor * const sensor2) {
         if(sensorStateNotified1 != sensor->isWorking())
             sendSensorInfo(0, sensor->isWorking(), PACKET_SENSOR_INFO);
         if(sensorStateNotified2 != sensor2->isWorking())
-            sendSensorInfo(1, sensor->isWorking(), PACKET_SENSOR_INFO);
+            sendSensorInfo(1, sensor2->isWorking(), PACKET_SENSOR_INFO);
     }
 }
 
@@ -597,7 +597,7 @@ void clientUpdate(Sensor * const sensor, Sensor * const sensor2)
                 Serial.println("Connection to server timed out");
             }
         }
-            
+        
         if(!connected) {
             connectClient();
         } else if(sensorStateNotified1 != sensor->isWorking() || sensorStateNotified2 != sensor2->isWorking()) {

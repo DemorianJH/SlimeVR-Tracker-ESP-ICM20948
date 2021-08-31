@@ -1,11 +1,11 @@
 #include "Arduino-ICM20948.h"
 #include <Wire.h>
 
-
 ArduinoICM20948 icm20948;
 ArduinoICM20948Settings icmSettings =
 {
   .i2c_speed = 400000,                // i2c clock speed
+  .i2c_address = 0x69,                // Usually 0x69 or 0x68
   .is_SPI = false,                    // Enable SPI, if disable use i2c
   .cs_pin = 10,                       // SPI chip select pin
   .spi_speed = 7000000,               // SPI clock speed in Hz, max speed is 7MHz
@@ -19,6 +19,7 @@ ArduinoICM20948Settings icmSettings =
   .enable_quaternion9 = true,         // Enables quaternion 9DOF output
   .enable_har = true,                 // Enables activity recognition
   .enable_steps = true,               // Enables step counter
+  .enable_step_detector = false,      // Not really working
   .gyroscope_frequency = 1,           // Max frequency = 225, min frequency = 1
   .accelerometer_frequency = 1,       // Max frequency = 225, min frequency = 1
   .magnetometer_frequency = 1,        // Max frequency = 70, min frequency = 1 
@@ -27,8 +28,8 @@ ArduinoICM20948Settings icmSettings =
   .quaternion6_frequency = 50,        // Max frequency = 225, min frequency = 50
   .quaternion9_frequency = 50,        // Max frequency = 225, min frequency = 50
   .har_frequency = 50,                // Max frequency = 225, min frequency = 50
-  .steps_frequency = 50               // Max frequency = 225, min frequency = 50
-  
+  .steps_frequency = 50,              // Max frequency = 225, min frequency = 50
+  .step_detector_frequency = 50
 };
 
 const uint8_t number_i2c_addr = 2;
@@ -199,11 +200,11 @@ void setup()
   i2c_scan();
   if (ICM_found)
   {
+      icmSettings.i2c_address = ICM_address;
       icm20948.init(icmSettings);
   }
-
-
 }
+
 void loop() 
 {
   if (ICM_found)
@@ -215,9 +216,9 @@ void loop()
     //run_icm20948_linearAccel_controller();
     //run_icm20948_grav_controller();
     //run_icm20948_quat6_controller(true);
-    //run_icm20948_quat9_controller(true);
-    run_icm20948_har_controller();
-    run_icm20948_steps_controller();
+    run_icm20948_quat9_controller(true);
+    //run_icm20948_har_controller();
+    //run_icm20948_steps_controller();
   }
   delay(10);
 

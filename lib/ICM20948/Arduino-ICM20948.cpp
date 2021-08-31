@@ -2,64 +2,33 @@
   Includes
 *************************************************************************/
 
-#include "Arduino-ICM20948.h"
-#include <Wire.h>
-#include <SPI.h>
 #include <Arduino.h>
+#include <SPI.h>
+#include <Wire.h>
+#include "Arduino-ICM20948.h"
+
 
 // InvenSense drivers and utils
-#include "Icm20948.h"
-#include "SensorTypes.h"
-#include "Icm20948MPUFifoControl.h"
 
-/*************************************************************************
-  Variables
-*************************************************************************/
+static const uint8_t EXPECTED_WHOAMI[] = { 0xEA }; /* WHOAMI value for ICM20948 or derivative */
+#define AK0991x_DEFAULT_I2C_ADDR  0x0C
+#define AK0991x_SECONDARY_I2C_ADDR  0x0E  /* The secondary I2C address for AK0991x Magnetometers */
 
-int chipSelectPin;
-int com_speed;
+#define ICM_I2C_ADDR_REVA      0x68  /* I2C slave address for INV device on Rev A board */
+#define ICM_I2C_ADDR_REVB     0x69  /* I2C slave address for INV device on Rev B board */
 
-uint8_t I2C_Address = 0x69;
+#define AD0_VAL   1     // The value of the last bit of the I2C address.
+#define THREE_AXES 3
+static int unscaled_bias[THREE_AXES * 2];
 
-float gyro[3];
-bool gyro_data_ready = false;
-
-float accel[3];
-bool accel_data_ready = false;
-
-float mag[3];
-bool mag_data_ready = false;
-
-float grav[3];
-bool grav_data_ready = false;
-
-float lAccel[3];
-bool linearAccel_data_ready = false;
-
-float quat6[4];
-bool quat6_data_ready = false;
-
-float euler6[3];
-bool euler6_data_ready = false;
-
-float quat9[4];
-bool quat9_data_ready = false;
-
-float euler9[3];
-bool euler9_data_ready = false;
-
-int har;
-bool har_data_ready = false;
-
-unsigned long steps;
-bool steps_data_ready = false;
-
-bool step_new = false;
+static const uint8_t dmp3_image[] = {
+#include "icm20948_img.dmp3a.h"
+};
 
 /*************************************************************************
   HAL Functions for Arduino
 *************************************************************************/
-int spi_master_read_register(uint8_t reg, uint8_t* rbuffer, uint32_t rlen)
+int ArduinoICM20948::spi_master_read_register(uint8_t reg, uint8_t* rbuffer, uint32_t rlen)
 {
     //return spi_master_transfer_rx(NULL, reg, rbuffer, rlen);
   
@@ -80,7 +49,7 @@ int spi_master_read_register(uint8_t reg, uint8_t* rbuffer, uint32_t rlen)
     return 0;
 }
 
-int spi_master_write_register(uint8_t reg, const uint8_t* wbuffer, uint32_t wlen)
+int ArduinoICM20948::spi_master_write_register(uint8_t reg, const uint8_t* wbuffer, uint32_t wlen)
 {
     //return spi_master_transfer_tx(NULL, reg, wbuffer, wlen);
 
@@ -101,7 +70,7 @@ int spi_master_write_register(uint8_t reg, const uint8_t* wbuffer, uint32_t wlen
     return 0;
 }
 
-int i2c_master_write_register(uint8_t address, uint8_t reg, uint32_t len, const uint8_t *data)
+int ArduinoICM20948::i2c_master_write_register(uint8_t address, uint8_t reg, uint32_t len, const uint8_t *data)
 {
   if (!(address == 0x69 || address == 0x68))
   {
@@ -122,7 +91,7 @@ int i2c_master_write_register(uint8_t address, uint8_t reg, uint32_t len, const 
   return 0;
 }
 
-int i2c_master_read_register(uint8_t address, uint8_t reg, uint32_t len, uint8_t *buff)
+int ArduinoICM20948::i2c_master_read_register(uint8_t address, uint8_t reg, uint32_t len, uint8_t *buff)
 {
   if (!(address == 0x69 || address == 0x68))
   {
@@ -160,44 +129,11 @@ int i2c_master_read_register(uint8_t address, uint8_t reg, uint32_t len, uint8_t
   }
 }
 
-
-/*************************************************************************
-  Invensense Variables
-*************************************************************************/
-
-inv_icm20948_t icm_device;
-int rc = 0;
-static const uint8_t EXPECTED_WHOAMI[] = { 0xEA }; /* WHOAMI value for ICM20948 or derivative */
-#define AK0991x_DEFAULT_I2C_ADDR  0x0C
-#define AK0991x_SECONDARY_I2C_ADDR  0x0E  /* The secondary I2C address for AK0991x Magnetometers */
-
-#define ICM_I2C_ADDR_REVA      0x68  /* I2C slave address for INV device on Rev A board */
-#define ICM_I2C_ADDR_REVB     0x69  /* I2C slave address for INV device on Rev B board */
-
-#define AD0_VAL   1     // The value of the last bit of the I2C address.
-
-
-#define THREE_AXES 3
-static int unscaled_bias[THREE_AXES * 2];
-
-static const float cfg_mounting_matrix[9] = {
-  1.f, 0, 0,
-  0, 1.f, 0,
-  0, 0, 1.f
-};
-
-int32_t cfg_acc_fsr = 4; // Default = +/- 4g. Valid ranges: 2, 4, 8, 16
-int32_t cfg_gyr_fsr = 2000; // Default = +/- 2000dps. Valid ranges: 250, 500, 1000, 2000
-
-static const uint8_t dmp3_image[] = {
-#include "icm20948_img.dmp3a.h"
-};
-
 /*************************************************************************
   Invensense Functions
 *************************************************************************/
 
-void check_rc(int rc, const char * msg_context) 
+void ArduinoICM20948::check_rc(int rc, const char * msg_context) 
 {
   if (rc < 0) {
     Serial.println("ICM20948 ERROR!");
@@ -205,10 +141,10 @@ void check_rc(int rc, const char * msg_context)
   }
 }
 
-int load_dmp3(void) 
+int ArduinoICM20948::load_dmp3(void) 
 {
   int rc = 0;
-  rc = inv_icm20948_load(&icm_device, dmp3_image, sizeof(dmp3_image));
+  rc = icm20948.inv_icm20948_load(&icm_device, dmp3_image, sizeof(dmp3_image));
   return rc;
 }
 
@@ -217,18 +153,17 @@ void inv_icm20948_sleep_us(int us)
   delayMicroseconds(us);
 }
 
-void inv_icm20948_sleep(int ms) 
-{
-  delay(ms);
-}
+//void inv_icm20948_sleep(int ms) 
+//{
+//  delay(ms);
+//}
 
 uint64_t inv_icm20948_get_time_us(void) 
 {
   return micros();
 }
 
-
-void initiliaze_SPI(void)
+void ArduinoICM20948::initiliaze_SPI(void)
 {
     pinMode(chipSelectPin, OUTPUT);
     digitalWrite(chipSelectPin, HIGH);
@@ -238,14 +173,14 @@ void initiliaze_SPI(void)
     SPI.transfer(0x00);
     SPI.endTransaction();
 }
-void initiliaze_I2C(void)
+
+void ArduinoICM20948::initiliaze_I2C(void)
 {
     Wire.begin();
     Wire.setClock(com_speed);
 }
 
-bool is_interface_SPI = false;
-void set_comm_interface(ArduinoICM20948Settings settings)
+void ArduinoICM20948::set_comm_interface(ArduinoICM20948Settings settings)
 {
     chipSelectPin = settings.cs_pin;
     is_interface_SPI = settings.is_SPI;
@@ -261,13 +196,14 @@ void set_comm_interface(ArduinoICM20948Settings settings)
     }
 
 }
-inv_bool_t interface_is_SPI(void)
+
+inv_bool_t ArduinoICM20948::interface_is_SPI(void)
 {
   return is_interface_SPI;
 }
 
 //---------------------------------------------------------------------
-int idd_io_hal_read_reg(void *context, uint8_t reg, uint8_t *rbuffer, uint32_t rlen)
+int ArduinoICM20948::idd_io_hal_read_reg(void *context, uint8_t reg, uint8_t *rbuffer, uint32_t rlen)
 {
     if (interface_is_SPI())
     {
@@ -278,7 +214,7 @@ int idd_io_hal_read_reg(void *context, uint8_t reg, uint8_t *rbuffer, uint32_t r
 
 //---------------------------------------------------------------------
 
-int idd_io_hal_write_reg(void *context, uint8_t reg, const uint8_t *wbuffer, uint32_t wlen)
+int ArduinoICM20948::idd_io_hal_write_reg(void *context, uint8_t reg, const uint8_t *wbuffer, uint32_t wlen)
 {
     if (interface_is_SPI())
     {
@@ -287,33 +223,32 @@ int idd_io_hal_write_reg(void *context, uint8_t reg, const uint8_t *wbuffer, uin
     return i2c_master_write_register(I2C_Address, reg, wlen, wbuffer);
 }
 
-static void icm20948_apply_mounting_matrix(void) 
+void ArduinoICM20948::icm20948_apply_mounting_matrix(void) 
 {
   int ii;
 
   for (ii = 0; ii < INV_ICM20948_SENSOR_MAX; ii++) {
-    inv_icm20948_set_matrix(&icm_device, cfg_mounting_matrix, (inv_icm20948_sensor)ii);
+    icm20948.inv_icm20948_set_matrix(&icm_device, cfg_mounting_matrix, (inv_icm20948_sensor)ii);
   }
 }
 
-static void icm20948_set_fsr(void) 
+void ArduinoICM20948::icm20948_set_fsr(void) 
 {
-  inv_icm20948_set_fsr(&icm_device, INV_ICM20948_SENSOR_RAW_ACCELEROMETER, (const void *)&cfg_acc_fsr);
-  inv_icm20948_set_fsr(&icm_device, INV_ICM20948_SENSOR_ACCELEROMETER, (const void *)&cfg_acc_fsr);
-  inv_icm20948_set_fsr(&icm_device, INV_ICM20948_SENSOR_RAW_GYROSCOPE, (const void *)&cfg_gyr_fsr);
-  inv_icm20948_set_fsr(&icm_device, INV_ICM20948_SENSOR_GYROSCOPE, (const void *)&cfg_gyr_fsr);
-  inv_icm20948_set_fsr(&icm_device, INV_ICM20948_SENSOR_GYROSCOPE_UNCALIBRATED, (const void *)&cfg_gyr_fsr);
+  icm20948.inv_icm20948_set_fsr(&icm_device, INV_ICM20948_SENSOR_RAW_ACCELEROMETER, (const void *)&cfg_acc_fsr);
+  icm20948.inv_icm20948_set_fsr(&icm_device, INV_ICM20948_SENSOR_ACCELEROMETER, (const void *)&cfg_acc_fsr);
+  icm20948.inv_icm20948_set_fsr(&icm_device, INV_ICM20948_SENSOR_RAW_GYROSCOPE, (const void *)&cfg_gyr_fsr);
+  icm20948.inv_icm20948_set_fsr(&icm_device, INV_ICM20948_SENSOR_GYROSCOPE, (const void *)&cfg_gyr_fsr);
+  icm20948.inv_icm20948_set_fsr(&icm_device, INV_ICM20948_SENSOR_GYROSCOPE_UNCALIBRATED, (const void *)&cfg_gyr_fsr);
 }
 
-int icm20948_sensor_setup(void)
+int ArduinoICM20948::icm20948_sensor_setup(void)
 {
-
   int rc;
   uint8_t i, whoami = 0xff;
 
-  rc = inv_icm20948_soft_reset(&icm_device);
+  rc = icm20948.inv_icm20948_soft_reset(&icm_device);
   // Get whoami number
-  rc = inv_icm20948_get_whoami(&icm_device, &whoami);
+  rc = icm20948.inv_icm20948_get_whoami(&icm_device, &whoami);
   // Check if WHOAMI value corresponds to any value from EXPECTED_WHOAMI array
   for (i = 0; i < sizeof(EXPECTED_WHOAMI) / sizeof(EXPECTED_WHOAMI[0]); ++i) {
 
@@ -329,20 +264,24 @@ int icm20948_sensor_setup(void)
   }
 
   // Setup accel and gyro mounting matrix and associated angle for current board
-  inv_icm20948_init_matrix(&icm_device);
+  icm20948.inv_icm20948_init_matrix(&icm_device);
 
   // set default power mode
-  rc = inv_icm20948_initialize(&icm_device, dmp3_image, sizeof(dmp3_image)); Serial.println(rc);
+  rc = icm20948.inv_icm20948_initialize(&icm_device, dmp3_image, sizeof(dmp3_image));
+
+  Serial.print("Init ret code: ");
+  Serial.println(rc);
+
   if (rc != 0) {
-    Serial.println("Icm20948 Initialization failed.");
+    Serial.print("Icm20948 Initialization failed. ");
     return rc;
   }
 
   // Configure and initialize the ICM20948 for normal use
 
   // Initialize auxiliary sensors
-  inv_icm20948_register_aux_compass( &icm_device, INV_ICM20948_COMPASS_ID_AK09916, AK0991x_DEFAULT_I2C_ADDR);
-  rc = inv_icm20948_initialize_auxiliary(&icm_device); 
+  icm20948.inv_icm20948_register_aux_compass( &icm_device, icm20948.inv_icm20948_compass_id::INV_ICM20948_COMPASS_ID_AK09916, AK0991x_DEFAULT_I2C_ADDR);
+  rc = icm20948.inv_icm20948_initialize_auxiliary(&icm_device); 
   if (rc == -1) {
     Serial.println("Compass not detected...");
   }
@@ -352,18 +291,18 @@ int icm20948_sensor_setup(void)
   icm20948_set_fsr();
 
   // re-initialize base state structure
-  inv_icm20948_init_structure(&icm_device);
+  icm20948.inv_icm20948_init_structure(&icm_device);
 
   return 0;
 }
 
-static uint8_t icm20948_get_grv_accuracy(void) 
+uint8_t ArduinoICM20948::icm20948_get_grv_accuracy(void) 
 {
   uint8_t accel_accuracy;
   uint8_t gyro_accuracy;
 
-  accel_accuracy = (uint8_t)inv_icm20948_get_accel_accuracy();
-  gyro_accuracy = (uint8_t)inv_icm20948_get_gyro_accuracy();
+  accel_accuracy = (uint8_t)icm20948.inv_icm20948_get_accel_accuracy();
+  gyro_accuracy = (uint8_t)icm20948.inv_icm20948_get_gyro_accuracy();
   return (min(accel_accuracy, gyro_accuracy));
 }
 
@@ -390,11 +329,10 @@ static uint8_t convert_to_generic_ids[INV_ICM20948_SENSOR_MAX] = {
   INV_SENSOR_TYPE_B2S
 };
 
-void build_sensor_event_data(void * context, enum inv_icm20948_sensor sensortype, uint64_t timestamp, const void * data, const void *arg) 
+int ArduinoICM20948::build_sensor_event_data(enum inv_icm20948_sensor sensortype, uint64_t timestamp, const void * data, const void *arg) 
 {
   float raw_bias_data[6];
-  inv_sensor_event_t event;
-  (void)context;
+  Icm20948::inv_sensor_event_t event;
   uint8_t sensor_id = convert_to_generic_ids[sensortype];
 
   memset((void *)&event, 0, sizeof(event));
@@ -427,7 +365,7 @@ void build_sensor_event_data(void * context, enum inv_icm20948_sensor sensortype
 
     case INV_SENSOR_TYPE_GRAVITY:
       memcpy(event.data.grav.vect, data, sizeof(event.data.grav.vect));
-      event.data.grav.accuracy_flag = inv_icm20948_get_accel_accuracy();
+      event.data.grav.accuracy_flag = icm20948.inv_icm20948_get_accel_accuracy();
 
       grav[0] = event.data.grav.vect[0];
       grav[1] = event.data.grav.vect[1];
@@ -526,11 +464,23 @@ void build_sensor_event_data(void * context, enum inv_icm20948_sensor sensortype
       memcpy(event.data.raw3d.vect, data, sizeof(event.data.raw3d.vect));
       break;
     default:
-      return;
+      break;     
   }
+
+  return 0;
 }
 
-static enum inv_icm20948_sensor idd_sensortype_conversion(int sensor)
+
+
+/*************************************************************************
+  Class Functions
+*************************************************************************/
+
+ArduinoICM20948::ArduinoICM20948()
+{
+}
+
+enum inv_icm20948_sensor ArduinoICM20948::idd_sensortype_conversion(int sensor)
 {
   switch (sensor)
   {
@@ -579,31 +529,24 @@ static enum inv_icm20948_sensor idd_sensortype_conversion(int sensor)
   }
 }
 
-/*************************************************************************
-  Class Functions
-*************************************************************************/
-
-ArduinoICM20948::ArduinoICM20948()
-{
-}
-
 int ArduinoICM20948::init(ArduinoICM20948Settings settings)
 {
+  ArduinoICM20948 *me = this;
   set_comm_interface(settings);
   Serial.println("Initializing ICM-20948...");
   I2C_Address = settings.i2c_address;
   // Initialize icm20948 serif structure
   struct inv_icm20948_serif icm20948_serif;
   icm20948_serif.context   = 0; // no need
-  icm20948_serif.read_reg  = idd_io_hal_read_reg;
-  icm20948_serif.write_reg = idd_io_hal_write_reg;
+  icm20948_serif.read_reg  = [me](void * context, uint8_t reg, uint8_t *buf, uint32_t len) -> int { return me->idd_io_hal_read_reg(context, reg, buf, len); };
+  icm20948_serif.write_reg = [me](void * context, uint8_t reg, const uint8_t *buf, uint32_t len) -> int { return me->idd_io_hal_write_reg(context, reg, buf, len); };
   icm20948_serif.max_read  = 1024 * 16; // maximum number of bytes allowed per serial read
   icm20948_serif.max_write = 1024 * 16; // maximum number of bytes allowed per serial write
   icm20948_serif.is_spi = interface_is_SPI();
 
   // Reset icm20948 driver states 
-  inv_icm20948_reset_states(&icm_device, &icm20948_serif);
-  inv_icm20948_register_aux_compass(&icm_device, INV_ICM20948_COMPASS_ID_AK09916, AK0991x_DEFAULT_I2C_ADDR);
+  icm20948.inv_icm20948_reset_states(&icm_device, &icm20948_serif);
+  icm20948.inv_icm20948_register_aux_compass(&icm_device, icm20948.inv_icm20948_compass_id::INV_ICM20948_COMPASS_ID_AK09916, AK0991x_DEFAULT_I2C_ADDR);
 
   // Setup the icm20948 device
   rc = icm20948_sensor_setup();
@@ -611,7 +554,7 @@ int ArduinoICM20948::init(ArduinoICM20948Settings settings)
   if (icm_device.selftest_done && !icm_device.offset_done)
   {
     // If we've run self test and not already set the offset.
-    inv_icm20948_set_offset(&icm_device, unscaled_bias);
+    icm20948.inv_icm20948_set_offset(&icm_device, unscaled_bias);
     icm_device.offset_done = 1;
   }
 
@@ -621,40 +564,41 @@ int ArduinoICM20948::init(ArduinoICM20948Settings settings)
   check_rc(rc, "Error sensor_setup/DMP loading.");
 
   // Set mode
-  inv_icm20948_set_lowpower_or_highperformance(&icm_device, settings.mode);
+  icm20948.inv_icm20948_set_lowpower_or_highperformance(&icm_device, settings.mode);
 
   // Set frequency
-  rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_GYROSCOPE), 1000 / settings.gyroscope_frequency);
-  rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_ACCELEROMETER), 1000 / settings.accelerometer_frequency);
-  rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_MAGNETOMETER), 1000 / settings.magnetometer_frequency);
-  rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_GAME_ROTATION_VECTOR), 1000 / settings.quaternion6_frequency);
-  rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_ROTATION_VECTOR), 1000 / settings.quaternion9_frequency);
-  rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_GRAVITY), 1000 / settings.gravity_frequency);
-  rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_LINEAR_ACCELERATION), 1000 / settings.linearAcceleration_frequency);
-  rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_BAC), 1000 / settings.har_frequency);
-  rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_STEP_COUNTER), 1000 / settings.steps_frequency);
-  rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_STEP_DETECTOR), 1000 / settings.step_detector_frequency);
+  rc = icm20948.inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_GYROSCOPE), 1000 / settings.gyroscope_frequency);
+  rc = icm20948.inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_ACCELEROMETER), 1000 / settings.accelerometer_frequency);
+  rc = icm20948.inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_MAGNETOMETER), 1000 / settings.magnetometer_frequency);
+  rc = icm20948.inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_GAME_ROTATION_VECTOR), 1000 / settings.quaternion6_frequency);
+  rc = icm20948.inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_ROTATION_VECTOR), 1000 / settings.quaternion9_frequency);
+  rc = icm20948.inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_GRAVITY), 1000 / settings.gravity_frequency);
+  rc = icm20948.inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_LINEAR_ACCELERATION), 1000 / settings.linearAcceleration_frequency);
+  rc = icm20948.inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_BAC), 1000 / settings.har_frequency);
+  rc = icm20948.inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_STEP_COUNTER), 1000 / settings.steps_frequency);
+  rc = icm20948.inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_STEP_DETECTOR), 1000 / settings.step_detector_frequency);
 
   // Enable / disable
-  rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_GYROSCOPE), settings.enable_gyroscope);
-  rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_ACCELEROMETER), settings.enable_accelerometer);
-  rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_MAGNETOMETER), settings.enable_magnetometer);
-  rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_GAME_ROTATION_VECTOR), settings.enable_quaternion6);
-  rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_ROTATION_VECTOR), settings.enable_quaternion9);
-  rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_GRAVITY), settings.enable_gravity);
-  rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_LINEAR_ACCELERATION), settings.enable_linearAcceleration);
-  rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_BAC), settings.enable_har);
-  rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_STEP_COUNTER), settings.enable_steps);
-  rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_STEP_DETECTOR), settings.enable_step_detector);
+  rc = icm20948.inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_GYROSCOPE), settings.enable_gyroscope);
+  rc = icm20948.inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_ACCELEROMETER), settings.enable_accelerometer);
+  rc = icm20948.inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_MAGNETOMETER), settings.enable_magnetometer);
+  rc = icm20948.inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_GAME_ROTATION_VECTOR), settings.enable_quaternion6);
+  rc = icm20948.inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_ROTATION_VECTOR), settings.enable_quaternion9);
+  rc = icm20948.inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_GRAVITY), settings.enable_gravity);
+  rc = icm20948.inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_LINEAR_ACCELERATION), settings.enable_linearAcceleration);
+  rc = icm20948.inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_BAC), settings.enable_har);
+  rc = icm20948.inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_STEP_COUNTER), settings.enable_steps);
+  rc = icm20948.inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(INV_SENSOR_TYPE_STEP_DETECTOR), settings.enable_step_detector);
 
   return rc;
 }
 
-
-
 int ArduinoICM20948::task()
 {
-  return inv_icm20948_poll_sensor(&icm_device, (void*)0, build_sensor_event_data);
+  ArduinoICM20948 *me = this;
+  return icm20948.inv_icm20948_poll_sensor(&icm_device, (void*)0, [me](enum inv_icm20948_sensor sensor, uint64_t timestamp, const void * data, const void *arg) -> int {
+        return me->build_sensor_event_data(sensor, timestamp, data, arg);
+    });
 }
 
 bool ArduinoICM20948::gyroDataIsReady()
@@ -666,7 +610,6 @@ bool ArduinoICM20948::accelDataIsReady()
 {
   return accel_data_ready;
 }
-
 
 bool ArduinoICM20948::magDataIsReady()
 {
@@ -780,7 +723,7 @@ void ArduinoICM20948::readEuler6Data(float *roll, float *pitch, float *yaw)
 {
     *roll = (atan2f(quat6[0]*quat6[1] + quat6[2]*quat6[3], 0.5f - quat6[1]*quat6[1] - quat6[2]*quat6[2]))* 57.29578f;
     *pitch = (asinf(-2.0f * (quat6[1]*quat6[3] - quat6[0]*quat6[2])))* 57.29578f;
-	*yaw = (atan2f(quat6[1]*quat6[2] + quat6[0]*quat6[3], 0.5f - quat6[2]*quat6[2] - quat6[3]*quat6[3]))* 57.29578f + 180.0f;
+	  *yaw = (atan2f(quat6[1]*quat6[2] + quat6[0]*quat6[3], 0.5f - quat6[2]*quat6[2] - quat6[3]*quat6[3]))* 57.29578f + 180.0f;
     euler6_data_ready = false;
 }
 
@@ -811,8 +754,7 @@ void ArduinoICM20948::readEuler9Data(float* roll, float* pitch, float* yaw)
 }
 
 void ArduinoICM20948::readHarData(char* activity)
-{
-    
+{    
     char temp = 'n';
     switch (har)
     {
@@ -854,33 +796,33 @@ void ArduinoICM20948::readStepTakenData()
 
 int ArduinoICM20948::getGyroBias(int * bias)
 {
-	return dmp_icm20948_get_bias_gyr(&icm_device, bias);
+	return icm20948.dmp_icm20948_get_bias_gyr(&icm_device, bias);
 }
 
 int ArduinoICM20948::getAccelBias(int * bias)
 {
-	return dmp_icm20948_get_bias_acc(&icm_device, bias);
+	return icm20948.dmp_icm20948_get_bias_acc(&icm_device, bias);
 }
 
 int ArduinoICM20948::getMagBias(int * bias)
 {
-	return dmp_icm20948_get_bias_cmp(&icm_device, bias);  
+	return icm20948.dmp_icm20948_get_bias_cmp(&icm_device, bias);  
 }
 
 // *** SET
 int ArduinoICM20948::setGyroBias(int * bias)
 {
-	return dmp_icm20948_set_bias_gyr(&icm_device, bias);
+	return icm20948.dmp_icm20948_set_bias_gyr(&icm_device, bias);
 }
 
 int ArduinoICM20948::setAccelBias(int * bias)
 {
-	return dmp_icm20948_set_bias_acc(&icm_device, bias);
+	return icm20948.dmp_icm20948_set_bias_acc(&icm_device, bias);
 }
 
 int ArduinoICM20948::setMagBias(int * bias)
 {
-	return dmp_icm20948_set_bias_cmp(&icm_device, bias);  
+	return icm20948.dmp_icm20948_set_bias_cmp(&icm_device, bias);  
 }
 
 /*
@@ -900,3 +842,10 @@ static void icm20948_apply_mounting_matrix(void){
 	}
 }
 */
+
+/* 
+Trying to make this lib less reliant on globals
+Might be some typedefs to squash
+Couple of globals in Icm20948MPUFifoControl.c
+Some globals (likely safe to ignore) in Message.c
+*/ 

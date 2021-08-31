@@ -1,65 +1,89 @@
 /*
-* ________________________________________________________________________________________________________
-* Copyright (c) 2015-2015 InvenSense Inc. All rights reserved.
-*
-* This software, related documentation and any modifications thereto (collectively “Software”) is subject
-* to InvenSense and its licensors' intellectual property rights under U.S. and international copyright
-* and other intellectual property rights laws.
-*
-* InvenSense and its licensors retain all intellectual property and proprietary rights in and to the Software
-* and any use, reproduction, disclosure or distribution of the Software without an express license agreement
-* from InvenSense is strictly prohibited.
-*
-* EXCEPT AS OTHERWISE PROVIDED IN A LICENSE AGREEMENT BETWEEN THE PARTIES, THE SOFTWARE IS
-* PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-* TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
-* EXCEPT AS OTHERWISE PROVIDED IN A LICENSE AGREEMENT BETWEEN THE PARTIES, IN NO EVENT SHALL
-* INVENSENSE BE LIABLE FOR ANY DIRECT, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, OR ANY
-* DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
-* NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
-* OF THE SOFTWARE.
-* ________________________________________________________________________________________________________
-*/
+ * ________________________________________________________________________________________________________
+ * Copyright (c) 2017 InvenSense Inc. All rights reserved.
+ *
+ * This software, related documentation and any modifications thereto (collectively “Software”) is subject
+ * to InvenSense and its licensors' intellectual property rights under U.S. and international copyright
+ * and other intellectual property rights laws.
+ *
+ * InvenSense and its licensors retain all intellectual property and proprietary rights in and to the Software
+ * and any use, reproduction, disclosure or distribution of the Software without an express license agreement
+ * from InvenSense is strictly prohibited.
+ *
+ * EXCEPT AS OTHERWISE PROVIDED IN A LICENSE AGREEMENT BETWEEN THE PARTIES, THE SOFTWARE IS
+ * PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+ * TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
+ * EXCEPT AS OTHERWISE PROVIDED IN A LICENSE AGREEMENT BETWEEN THE PARTIES, IN NO EVENT SHALL
+ * INVENSENSE BE LIABLE FOR ANY DIRECT, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, OR ANY
+ * DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
+ * OF THE SOFTWARE.
+ * ________________________________________________________________________________________________________
+ */
 
-#include "Icm20948Transport.h"
-#include "Icm20948Serif.h"
 #include "Icm20948.h"
 
-struct inv_icm20948 * icm20948_instance;
+Icm20948::Icm20948(){}
 
-int inv_icm20948_read_reg(struct inv_icm20948 * s, uint8_t reg,	uint8_t * buf, uint32_t len)
+void Icm20948::inv_msg_printer_default(int level, const char * str, va_list ap)
+{
+	(void)level, (void)str, (void)ap;
+}
+
+void Icm20948::inv_msg_setup(int level, inv_msg_printer_t printer)
+{
+	msg_level   = level;
+	if (level < INV_MSG_LEVEL_OFF)
+		msg_level = INV_MSG_LEVEL_OFF;
+	else if (level > INV_MSG_LEVEL_MAX)
+		msg_level = INV_MSG_LEVEL_MAX;
+	msg_printer = printer;
+}
+
+void Icm20948::inv_msg(int level, const char * str, ...)
+{
+	if(level && level <= msg_level && msg_printer) {
+		va_list ap;
+		va_start(ap, str);
+		msg_printer(level, str, ap);
+		va_end(ap);
+	}
+}
+
+int Icm20948::inv_msg_get_level(void)
+{
+	return msg_level;
+}
+
+int Icm20948::inv_icm20948_read_reg(struct inv_icm20948 * s, uint8_t reg,	uint8_t * buf, uint32_t len)
 {
 	return inv_icm20948_serif_read_reg(&s->serif, reg, buf, len);
 }
 
-int inv_icm20948_write_reg(struct inv_icm20948 * s, uint8_t reg, const uint8_t * buf, uint32_t len)
+int Icm20948::inv_icm20948_write_reg(struct inv_icm20948 * s, uint8_t reg, const uint8_t * buf, uint32_t len)
 {
 	return inv_icm20948_serif_write_reg(&s->serif, reg, buf, len);
 }
 
-void inv_icm20948_sleep_100us(unsigned long nHowMany100MicroSecondsToSleep)  // time in 100 us
+void Icm20948::inv_icm20948_sleep_100us(unsigned long nHowMany100MicroSecondsToSleep)  // time in 100 us
 {
 	inv_icm20948_sleep_us(nHowMany100MicroSecondsToSleep * 100);
 }
 
-long inv_icm20948_get_tick_count(void)
+long Icm20948::inv_icm20948_get_tick_count(void)
 {
 	return (long)inv_icm20948_get_time_us();
 }
 
 /* driver transport function */
 
-#include "Icm20948Defs.h"
-#include "Icm20948DataBaseDriver.h"
-#include "Icm20948DataBaseControl.h"
-
-void inv_icm20948_transport_init(struct inv_icm20948 * s)
+void Icm20948::inv_icm20948_transport_init(struct inv_icm20948 * s)
 {
 	s->lastBank = 0x7E;
 	s->lLastBankSelected = 0xFF;
 }
 
-static uint8_t check_reg_access_lp_disable(struct inv_icm20948 * s, unsigned short reg)
+uint8_t Icm20948::check_reg_access_lp_disable(struct inv_icm20948 * s, unsigned short reg)
 {
 	switch(reg){
 	case REG_LP_CONFIG:      /** (BANK_0 | 0x05) */
@@ -90,7 +114,7 @@ static uint8_t check_reg_access_lp_disable(struct inv_icm20948 * s, unsigned sho
 *  @return     0 if successful.
 */
 
-static int inv_set_bank(struct inv_icm20948 * s, unsigned char bank)
+int Icm20948::inv_set_bank(struct inv_icm20948 * s, unsigned char bank)
 {
 	int result;
 	//if bank reg was set before, just return
@@ -120,7 +144,7 @@ static int inv_set_bank(struct inv_icm20948 * s, unsigned char bank)
 *  @param[in]  Data to be written
 *  @return     0 if successful.
 */
-int inv_icm20948_write_mems_reg(struct inv_icm20948 * s, uint16_t reg, unsigned int length, const unsigned char *data)
+int Icm20948::inv_icm20948_write_mems_reg(struct inv_icm20948 * s, uint16_t reg, unsigned int length, const unsigned char *data)
 {
 	int result = 0;
 	unsigned int bytesWrite = 0;
@@ -137,7 +161,7 @@ int inv_icm20948_write_mems_reg(struct inv_icm20948 * s, uint16_t reg, unsigned 
 
 	while (bytesWrite<length) 
 	{
-		int thisLen = min(INV_MAX_SERIAL_WRITE, length-bytesWrite);
+		int thisLen = MIN(INV_MAX_SERIAL_WRITE, length-bytesWrite);
 
 		result |= inv_icm20948_write_reg(s, regOnly+bytesWrite,&data[bytesWrite], thisLen);
 
@@ -159,7 +183,7 @@ int inv_icm20948_write_mems_reg(struct inv_icm20948 * s, uint16_t reg, unsigned 
 *  @param[in]  Data to be written
 *  @return     0 if successful.
 */
-int inv_icm20948_write_single_mems_reg(struct inv_icm20948 * s, uint16_t reg, const unsigned char data)
+int Icm20948::inv_icm20948_write_single_mems_reg(struct inv_icm20948 * s, uint16_t reg, const unsigned char data)
 {
 	int result = 0;
 	unsigned char regOnly = (unsigned char)(reg & 0x7F);
@@ -189,7 +213,7 @@ int inv_icm20948_write_single_mems_reg(struct inv_icm20948 * s, uint16_t reg, co
 *  @param[in]  Data to be written
 *  @return     0 if successful.
 */
-int inv_icm20948_read_mems_reg(struct inv_icm20948 * s, uint16_t reg, unsigned int length, unsigned char *data)
+int Icm20948::inv_icm20948_read_mems_reg(struct inv_icm20948 * s, uint16_t reg, unsigned int length, unsigned char *data)
 {
 	int result = 0;
 	unsigned int bytesRead = 0;
@@ -207,7 +231,7 @@ int inv_icm20948_read_mems_reg(struct inv_icm20948 * s, uint16_t reg, unsigned i
 
 	while (bytesRead<length) 
 	{
-		int thisLen = min(INV_MAX_SERIAL_READ, length-bytesRead);
+		int thisLen = MIN(INV_MAX_SERIAL_READ, length-bytesRead);
 		if(s->base_state.serial_interface == SERIAL_INTERFACE_SPI) {
 			result |= inv_icm20948_read_reg(s, regOnly+bytesRead, &dat[bytesRead], thisLen);
 		} else {
@@ -240,7 +264,7 @@ int inv_icm20948_read_mems_reg(struct inv_icm20948 * s, uint16_t reg, unsigned i
 *  @param[in]  input data from the register
 *  @return     0 if successful.
 */
-int inv_icm20948_read_mems(struct inv_icm20948 * s, unsigned short reg, unsigned int length, unsigned char *data)
+int Icm20948::inv_icm20948_read_mems(struct inv_icm20948 * s, unsigned short reg, unsigned int length, unsigned char *data)
 {
 	int result=0;
 	unsigned int bytesWritten = 0;
@@ -281,7 +305,7 @@ int inv_icm20948_read_mems(struct inv_icm20948 * s, unsigned short reg, unsigned
 		if (result)
 			return result;
 
-		thisLen = min(INV_MAX_SERIAL_READ, length-bytesWritten);
+		thisLen = MIN(INV_MAX_SERIAL_READ, length-bytesWritten);
 		/* Write data */
 		if(s->base_state.serial_interface == SERIAL_INTERFACE_SPI) {
 			result |= inv_icm20948_read_reg(s, REG_MEM_R_W, &dat[bytesWritten], thisLen);
@@ -316,7 +340,7 @@ int inv_icm20948_read_mems(struct inv_icm20948 * s, unsigned short reg, unsigned
 *  @param[out]  output data from the register
 *  @return     0 if successful.
 */
-int inv_icm20948_write_mems(struct inv_icm20948 * s, unsigned short reg, unsigned int length, const unsigned char *data)
+int Icm20948::inv_icm20948_write_mems(struct inv_icm20948 * s, unsigned short reg, unsigned int length, const unsigned char *data)
 {
 	int result=0;
 	unsigned int bytesWritten = 0;
@@ -356,7 +380,7 @@ int inv_icm20948_write_mems(struct inv_icm20948 * s, unsigned short reg, unsigne
 		if (result)
 			return result;
 
-		thisLen = min(INV_MAX_SERIAL_WRITE, length-bytesWritten);
+		thisLen = MIN(INV_MAX_SERIAL_WRITE, length-bytesWritten);
 
 		/* Write data */ 
 		result |= inv_icm20948_write_reg(s, REG_MEM_R_W, &data[bytesWritten], thisLen);
@@ -373,19 +397,47 @@ int inv_icm20948_write_mems(struct inv_icm20948 * s, unsigned short reg, unsigne
 	return result;
 }
 
-/**
-*  @brief      Write single byte of data to a register on MEMs with no power control
-*  @param[in]  Register address
-*  @param[in]  Data to be written
-*  @return     0 if successful.
-*/
-int inv_icm20948_write_single_mems_reg_core(struct inv_icm20948 * s, uint16_t reg, const uint8_t data)
-{
-	int result = 0;
-	unsigned char regOnly = (unsigned char)(reg & 0x7F);
 
-	result |= inv_set_bank(s, reg >> 7);
-	result |= inv_icm20948_write_reg(s, regOnly, &data, 1);
 
-	return result;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

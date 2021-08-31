@@ -34,7 +34,7 @@
 
 #if IMU == IMU_BNO080 || IMU == IMU_BNO085
     BNO080Sensor sensor{};
-    #if defined(SECOND_IMU) && SECOND_IMU && defined(PIN_IMU_INT_2)
+    #if defined(PIN_IMU_INT_2)
         #define HAS_SECOND_IMU true
         BNO080Sensor sensor2{};
     #endif
@@ -175,9 +175,12 @@ void loop()
         if(isConnected()) {
 #endif
     sensor.motionLoop();
-    
-#if (defined(HAS_SECOND_IMU) && secondImuActive) 
-    sensor2.motionLoop();
+
+#ifdef HAS_SECOND_IMU
+    if (secondImuActive) 
+    {
+        sensor2.motionLoop();
+    }
 #endif
 
 #ifndef UPDATE_IMU_UNCONNECTED

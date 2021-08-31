@@ -3,6 +3,8 @@
 
 // TODO: change mount matrix
 
+// ************************ SAVING FOR ESP32 ONLY - REMOVE THAT FOR OTHER MCU ****************************
+
 #include <Arduino.h>
 
 #include <Arduino-ICM20948.h>
@@ -26,6 +28,7 @@ ArduinoICM20948 icm20948;
 ArduinoICM20948Settings icmSettings =
 {
   .i2c_speed = 200000,                // i2c clock speed
+  .i2c_address = 0x69,                // Usually 0x69 or 0x68
   .is_SPI = false,                    // Enable SPI, if disable use i2c
   .cs_pin = 10,                       // SPI chip select pin
   .spi_speed = 7000000,               // SPI clock speed in Hz, max speed is 7MHz
@@ -327,6 +330,7 @@ void setup()
 
   if (ICM_found)
   {      
+    icmSettings.i2c_address = ICM_address;
     icm20948.init(icmSettings);
 
     if (LOAD_BIAS)
