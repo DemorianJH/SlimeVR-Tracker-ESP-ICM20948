@@ -25,7 +25,7 @@
 // Set parameters of IMU and board used
 #define IMU IMU_ICM20948
 #define BOARD BOARD_CUSTOM
-#define IMU_ROTATION PI / 2
+#define IMU_ROTATION PI / 2.0
 #define SECOND_IMU_ROTATION IMU_ROTATION
 
 #if IMU == IMU_BNO085
